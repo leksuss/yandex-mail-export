@@ -1,0 +1,15 @@
+# Секреты и личные данные — никогда не коммитить
+cookies.txt
+*.cookies.txt
+uploaded_*.txt
+
+# Результаты выгрузки (письма, манифесты, debug-дампы API)
+dump/
+*/dump/
+_debug/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/

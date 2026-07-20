@@ -64,7 +64,13 @@ cd yandex-dump
 
 cd ../imap-upload
 ./upload.sh ../yandex-dump/dump box@ваш-новый-домен.ру
+# адрес IMAP-сервера назначения скрипт спросит сам; можно задать сразу:
+IMAP_HOST=imap.beget.com ./upload.sh ../yandex-dump/dump box@ваш-новый-домен.ру
 ```
+
+Адрес IMAP-сервера вашего хостинга смотрите в его панели управления;
+таблица типовых хостов (Beget, Timeweb, reg.ru, Mail.ru и др.) — в
+[imap-upload/README.md](imap-upload/README.md#для-каких-почтовых-провайдеров-подходит).
 
 Подробные инструкции, все флаги и разбор проблем — в README каждого
 подпроекта: [yandex-dump/README.md](yandex-dump/README.md),

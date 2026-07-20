@@ -31,12 +31,29 @@ if [ -z "$PYTHON" ]; then
     exit 1
 fi
 
+# Единственная зависимость — requests. Если её нет в текущем питоне,
+# держим её в локальном .venv рядом со скриптом: так не трогаем системное
+# окружение и не спотыкаемся о PIP_REQUIRE_VIRTUALENV или
+# externally-managed-environment (PEP 668).
+if [ -x ".venv/bin/python" ]; then
+    PYTHON=".venv/bin/python"
+fi
 if ! "$PYTHON" -c "import requests" >/dev/null 2>&1; then
-    info "Пакет 'requests' не найден, ставлю..."
-    if command -v uv >/dev/null 2>&1; then
-        uv pip install --system requests 2>/dev/null || "$PYTHON" -m pip install --user requests
-    else
-        "$PYTHON" -m pip install --user requests
+    if [ ! -x ".venv/bin/python" ]; then
+        info "Пакет 'requests' не найден — создаю виртуальное окружение .venv..."
+        if ! "$PYTHON" -m venv .venv; then
+            err "Не удалось создать виртуальное окружение (.venv)."
+            err "Создайте его вручную и поставьте зависимость:"
+            err "  $PYTHON -m venv .venv && .venv/bin/pip install requests"
+            exit 1
+        fi
+    fi
+    PYTHON=".venv/bin/python"
+    info "Ставлю requests в .venv..."
+    if ! "$PYTHON" -m pip install --quiet --disable-pip-version-check requests; then
+        err "Не удалось установить requests. Поставьте вручную:"
+        err "  .venv/bin/pip install requests"
+        exit 1
     fi
 fi
 

@@ -28,9 +28,31 @@ IMAP.
 
 ## Требования
 
-- Python 3.8+
-- Пакет `requests` (`pip install requests`, или скрипт `dump.sh`
-  поставит сам)
+- Python 3.8+ (проверить: `python3 --version`)
+- Модуль `venv` (входит в стандартную поставку Python; в Debian/Ubuntu
+  может потребоваться `apt install python3-venv`)
+- Пакет `requests` — единственная внешняя зависимость
+
+**Если запускаете через `dump.sh` — ставить ничего не нужно**: при
+первом запуске он сам создаст виртуальное окружение `.venv` рядом со
+скриптом и поставит туда `requests`. Это работает и на системах, где
+pip запрещает установку вне окружения (`PIP_REQUIRE_VIRTUALENV`,
+externally-managed-environment / PEP 668).
+
+Если запускаете `yandex_dump.py` напрямую, создайте окружение вручную:
+
+```bash
+cd yandex-dump
+python3 -m venv .venv            # создать виртуальное окружение
+source .venv/bin/activate        # активировать (Windows: .venv\Scripts\activate)
+pip install requests             # поставить зависимости
+```
+
+Дальше в этом же терминале запускайте `python yandex_dump.py ...`.
+Окружение активно только в текущем сеансе терминала: в новом сеансе
+снова выполните `source .venv/bin/activate` (выйти из окружения —
+`deactivate`). Каталог `.venv` уже добавлен в `.gitignore` — в git он
+не попадёт.
 
 ## Быстрый старт
 

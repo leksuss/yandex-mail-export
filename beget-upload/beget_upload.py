@@ -68,6 +68,33 @@ def imap_utf7_encode(s):
     return "".join(out)
 
 
+def quote_mailbox(name):
+    """Имя ящика как quoted string для IMAP-команд — иначе имена с
+    пробелами ломают синтаксис команды."""
+    return '"%s"' % name.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def get_namespace(m):
+    """Личный namespace сервера: (префикс, разделитель).
+
+    У Dovecot (в т.ч. на Beget) личные папки часто живут под префиксом
+    'INBOX.' — APPEND в 'Sent' без префикса отвечает ошибкой
+    'Client tried to access nonexistent namespace', правильное имя —
+    'INBOX.Sent'."""
+    try:
+        typ, data = m.namespace()
+        if typ == "OK" and data and data[0]:
+            s = data[0]
+            if isinstance(s, bytes):
+                s = s.decode(errors="replace")
+            mm = re.match(r'\(\("([^"]*)"\s+(?:"(.)"|NIL)\)', s)
+            if mm:
+                return mm.group(1), mm.group(2)
+    except Exception:
+        pass
+    return "", None
+
+
 def get_delimiter(m):
     typ, data = m.list('""', '""')
     if typ == "OK" and data and data[0]:
@@ -120,7 +147,7 @@ def msg_timestamp(entry, raw):
 def fetch_existing_message_ids(m, box):
     """Message-ID всех писем, уже лежащих в данной папке на сервере
     (без скачивания тела — только заголовок, батчами)."""
-    typ, _ = m.select('"%s"' % box.replace('"', '\\"'), readonly=True)
+    typ, _ = m.select(quote_mailbox(box), readonly=True)
     if typ != "OK":
         return set()
     typ, data = m.search(None, "ALL")
@@ -207,6 +234,9 @@ def main():
         for fld, (n, done) in plan.items():
             print("  %-30s -> %-20s  %d писем (%d уже залито)"
                   % (fld, target_mailbox(fld, ".", overrides), n, done))
+        print("\n(Если сервер держит папки в namespace с префиксом — например,"
+              "\n 'INBOX.' у Dovecot/Beget, — префикс определится и добавится"
+              "\n автоматически при подключении: Sent станет INBOX.Sent и т.д.)")
         return
 
     password = os.environ.get("IMAP_PASS") or getpass.getpass(
@@ -217,8 +247,12 @@ def main():
     if typ != "OK":
         sys.exit("Логин не удался")
     delim = get_delimiter(m)
+    ns_prefix, ns_delim = get_namespace(m)
+    if ns_delim:
+        delim = ns_delim
     boxes = existing_mailboxes(m)
-    print("Подключено к %s, разделитель папок: %r" % (args.host, delim))
+    print("Подключено к %s, разделитель папок: %r, префикс namespace: %r"
+          % (args.host, delim, ns_prefix))
 
     state = open(state_path, "a", encoding="utf-8")
     ok = fail = dup = 0
@@ -235,9 +269,11 @@ def main():
             continue
         raw = open(path, "rb").read()
         box = target_mailbox(e["folder"], delim, overrides)
+        if ns_prefix and box.upper() != "INBOX" and not box.startswith(ns_prefix):
+            box = ns_prefix + box
         if box not in boxes and box not in created and box.upper() != "INBOX":
-            m.create(box)          # "already exists" молча игнорируем
-            m.subscribe(box)
+            m.create(quote_mailbox(box))   # "already exists" молча игнорируем
+            m.subscribe(quote_mailbox(box))
             created.add(box)
 
         if args.dedupe:
@@ -255,12 +291,12 @@ def main():
         flags = None if e.get("unread") else r"(\Seen)"
         idate = imaplib.Time2Internaldate(msg_timestamp(e, raw))
         try:
-            typ, resp = m.append(box, flags, idate, raw)
+            typ, resp = m.append(quote_mailbox(box), flags, idate, raw)
         except imaplib.IMAP4.abort:
             # переподключение при обрыве
             m = imaplib.IMAP4_SSL(args.host, args.port)
             m.login(args.user, password)
-            typ, resp = m.append(box, flags, idate, raw)
+            typ, resp = m.append(quote_mailbox(box), flags, idate, raw)
         if typ == "OK":
             ok += 1
             state.write(e["mid"] + "\n")

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# upload.sh — дружелюбная обёртка над beget_upload.py.
+# upload.sh — дружелюбная обёртка над imap_upload.py.
 # Только стандартная библиотека Python, ничего ставить не нужно.
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -32,13 +32,20 @@ if [ -z "$IMAP_USER" ]; then
     read -r -p "Логин почтового ящика на новом сервере (например, box@example.com): " IMAP_USER
 fi
 
-HOST="${IMAP_HOST:-imap.beget.com}"
+HOST="${IMAP_HOST:-}"
+if [ -z "$HOST" ]; then
+    read -r -p "IMAP-сервер назначения (например, imap.beget.com — см. в панели вашего хостинга): " HOST
+fi
+if [ -z "$HOST" ]; then
+    err "IMAP-сервер не указан."
+    exit 1
+fi
 PORT="${IMAP_PORT:-993}"
-info "IMAP-сервер: $HOST:$PORT (поменять: переменные окружения IMAP_HOST / IMAP_PORT)"
+info "IMAP-сервер: $HOST:$PORT (можно задать заранее: переменные окружения IMAP_HOST / IMAP_PORT)"
 
 echo
 info "Сначала dry-run — покажу, что и куда поедет, БЕЗ реальной заливки."
-"$PYTHON" beget_upload.py --dump "$DUMP_DIR" --user "$IMAP_USER" \
+"$PYTHON" imap_upload.py --dump "$DUMP_DIR" --user "$IMAP_USER" \
     --host "$HOST" --port "$PORT" --dry-run "${@:3}"
 
 echo
@@ -52,7 +59,7 @@ case "$ans" in
 
         info "Запускаю заливку. Пароль спросится отдельно и никуда, кроме"
         info "самого IMAP-сервера, не отправляется."
-        "$PYTHON" beget_upload.py --dump "$DUMP_DIR" --user "$IMAP_USER" \
+        "$PYTHON" imap_upload.py --dump "$DUMP_DIR" --user "$IMAP_USER" \
             --host "$HOST" --port "$PORT" "${dedupe_flag[@]}" "${@:3}"
         echo
         bold "Готово."

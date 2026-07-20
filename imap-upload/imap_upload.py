@@ -1,19 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-beget_upload.py — заливка выгруженных .eml на почтовый сервер Beget
+imap_upload.py — заливка выгруженных .eml на любой IMAP-сервер
 через IMAP APPEND с сохранением папок, флага прочитанности и дат писем.
+
+Работает с любым почтовым провайдером, дающим доступ по IMAP
+(Beget, Timeweb, reg.ru, Mail.ru/VK WorkMail, Fastmail, свой Dovecot...).
 
 Только стандартная библиотека, ничего ставить не нужно.
 
 Использование:
-  python3 beget_upload.py --dump dump --user box@ваш-домен.ру
+  python3 imap_upload.py --dump dump --user box@ваш-домен.ру --host imap.example.com
   (пароль спросит интерактивно; либо переменная окружения IMAP_PASS)
 
 Полезное:
   --dry-run       показать, что и куда поедет, без заливки
   --folder-map    'Рассылки=INBOX' — переопределить назначение папки
-  --host/--port   по умолчанию imap.beget.com:993 (проверьте в панели Beget)
+  --port          по умолчанию 993 (IMAP over SSL)
 
 Скрипт резюмируемый: список уже залитых писем хранится в
 <dump>/uploaded_<user>.txt — повторный запуск дольёт только недостающее.
@@ -33,7 +36,7 @@ import time
 
 imaplib._MAXLINE = 10 * 1024 * 1024
 
-# Стандартные папки Яндекса -> типовые папки Dovecot (Beget)
+# Стандартные папки Яндекса -> типовые папки IMAP-серверов
 SPECIAL = {
     "inbox": "INBOX", "входящие": "INBOX",
     "sent": "Sent", "отправленные": "Sent",
@@ -178,20 +181,23 @@ def extract_message_id(raw):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Заливка .eml на IMAP Beget")
+    ap = argparse.ArgumentParser(
+        description="Заливка .eml на любой IMAP-сервер (APPEND)")
     ap.add_argument("--dump", required=True, help="каталог с выгрузкой")
     ap.add_argument("--user", required=True, help="почтовый ящик (логин IMAP)")
-    ap.add_argument("--host", default="imap.beget.com")
+    ap.add_argument("--host", required=True,
+                    help="IMAP-сервер назначения, например imap.beget.com "
+                         "(см. в панели/справке вашего хостинга)")
     ap.add_argument("--port", type=int, default=993)
     ap.add_argument("--delay", type=float, default=0.05)
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--folder-map", action="append", default=[],
-                    help="Переопределение: 'ИмяПапкиЯндекса=ПапкаНаBeget'")
+                    help="Переопределение: 'ИмяПапкиЯндекса=ПапкаНаСервере'")
     ap.add_argument("--dedupe", action="store_true",
                     help="пропускать письма, чей Message-ID уже есть в "
                          "целевой папке на сервере (медленнее на старте, "
                          "зато без дублей при пересечении с уже имеющейся "
-                         "на Beget почтой)")
+                         "на сервере почтой)")
     args = ap.parse_args()
 
     manifest_path = os.path.join(args.dump, "manifest.jsonl")

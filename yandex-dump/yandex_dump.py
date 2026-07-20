@@ -568,7 +568,7 @@ def main():
                       % (path, len(body), tpl_cache[0]))
                 return
             if total % 50 == 0:
-                print("  ...%d писем" % total)
+                print("  ...скачано %d писем" % total)
             time.sleep(args.delay)
         print("Папка «%s» готова." % f["name"])
 

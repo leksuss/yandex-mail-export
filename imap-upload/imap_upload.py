@@ -248,10 +248,14 @@ def main():
     password = os.environ.get("IMAP_PASS") or getpass.getpass(
         "Пароль от %s: " % args.user)
 
-    m = imaplib.IMAP4_SSL(args.host, args.port)
-    typ, _ = m.login(args.user, password)
-    if typ != "OK":
-        sys.exit("Логин не удался")
+    def connect():
+        conn = imaplib.IMAP4_SSL(args.host, args.port)
+        typ, _ = conn.login(args.user, password)
+        if typ != "OK":
+            sys.exit("Логин не удался")
+        return conn
+
+    m = connect()
     delim = get_delimiter(m)
     ns_prefix, ns_delim = get_namespace(m)
     if ns_delim:
@@ -296,13 +300,29 @@ def main():
 
         flags = None if e.get("unread") else r"(\Seen)"
         idate = imaplib.Time2Internaldate(msg_timestamp(e, raw))
-        try:
-            typ, resp = m.append(quote_mailbox(box), flags, idate, raw)
-        except imaplib.IMAP4.abort:
-            # переподключение при обрыве
-            m = imaplib.IMAP4_SSL(args.host, args.port)
-            m.login(args.user, password)
-            typ, resp = m.append(quote_mailbox(box), flags, idate, raw)
+        # Долгая сессия рано или поздно обрывается (сервер закрывает
+        # соединение, сеть моргает): imaplib кидает abort, а голый сокет —
+        # OSError (BrokenPipeError, SSLError и т.п.). И то и другое лечится
+        # переподключением; после нескольких неудач подряд — останавливаемся.
+        typ = resp = None
+        for attempt in range(1, 4):
+            try:
+                typ, resp = m.append(quote_mailbox(box), flags, idate, raw)
+                break
+            except (imaplib.IMAP4.abort, OSError) as exc:
+                print("  ! соединение оборвалось (%s: %s) — переподключаюсь, "
+                      "попытка %d/3..." % (type(exc).__name__, exc, attempt))
+                time.sleep(2 * attempt)
+                try:
+                    m.shutdown()
+                except Exception:
+                    pass
+                m = connect()
+        else:
+            state.close()
+            sys.exit("Соединение не восстановилось после 3 попыток. "
+                     "Запустите скрипт ещё раз позже — он продолжит с этого "
+                     "же места (uploaded_*.txt).")
         if typ == "OK":
             ok += 1
             state.write(e["mid"] + "\n")
@@ -316,7 +336,10 @@ def main():
             print("  ! APPEND fail mid=%s: %s" % (e["mid"], resp))
         time.sleep(args.delay)
 
-    m.logout()
+    try:
+        m.logout()
+    except Exception:
+        pass
     state.close()
     print("\nГотово: залито %d, пропущено дублей %d, ошибок %d."
           % (ok, dup, fail))

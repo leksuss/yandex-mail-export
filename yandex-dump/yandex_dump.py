@@ -369,7 +369,7 @@ def list_folder_heads(sess, ckey_holder, fid, args):
         out.extend(page)
         first += len(msgs)
         if len(out) % 300 < len(msgs):
-            print("  ...листинг: %d" % len(out))
+            print("  ...в списке уже %d писем" % len(out))
     return out, tid_counts
 
 
@@ -499,11 +499,13 @@ def main():
         os.makedirs(fdir, exist_ok=True)
 
         # 1. Полный листинг папки (в тредном режиме это шапки тредов).
+        print("Папка «%s»: получаю с сервера список писем (это ещё не "
+              "скачивание — быстрые запросы оглавления)..." % f["name"])
         heads, tid_counts = list_folder_heads(sess, ckey_holder, f["fid"], args)
         expected = f["count"]
-        print("Папка «%s»: в листинге %d элементов, счётчик папки: %s, "
+        print("  список получен: %d элементов, счётчик папки: %s, "
               "тредов замечено: %d"
-              % (f["name"], len(heads), expected, len(tid_counts)))
+              % (len(heads), expected, len(tid_counts)))
 
         # 2. Если элементов меньше счётчика — листинг тредный,
         #    разворачиваем цепочки и добираем остальные письма папки.
@@ -538,9 +540,16 @@ def main():
             print("  после разворачивания: %d писем" % len(work))
 
         # 3. Скачивание.
-        for m in work.values():
-            if m["mid"] in done_mids:
-                continue
+        todo = [m for m in work.values() if m["mid"] not in done_mids]
+        already = len(work) - len(todo)
+        if not todo:
+            print("  все %d писем этой папки уже скачаны ранее — пропускаю."
+                  % len(work))
+        else:
+            print("  скачиваю письма: новых %d%s..."
+                  % (len(todo),
+                     ", уже скачано ранее %d" % already if already else ""))
+        for m in todo:
             body = fetch_source(sess, m["mid"], uid, templates, tpl_cache,
                                 args.api_model)
             if body is None:

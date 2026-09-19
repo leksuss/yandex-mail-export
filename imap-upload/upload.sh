@@ -60,7 +60,7 @@ case "$ans" in
         info "Запускаю заливку. Пароль спросится отдельно и никуда, кроме"
         info "самого IMAP-сервера, не отправляется."
         "$PYTHON" imap_upload.py --dump "$DUMP_DIR" --user "$IMAP_USER" \
-            --host "$HOST" --port "$PORT" "${dedupe_flag[@]}" "${@:3}"
+            --host "$HOST" --port "$PORT" "${dedupe_flag[@]+"${dedupe_flag[@]}"}" "${@:3}"
         echo
         bold "Готово."
         ;;
